@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>webgl-fluid</title>
+
+    <meta charset="utf-8">   
+    <style>
+#canvas {
+    width:800px;
+    height:800px;
+
+}
+
+    </style>
+</head>
+
+<body>
+
+<canvas style="transform: rotateX(180deg);" id="canvas" width="500" height="500"></canvas>
+
+<script>
+
+    var count = 200;
+
+    function dist(a, b) {
+        return Math.sqrt( Math.pow(a.x-b.x, 2.0) + Math.pow(a.y-b.y, 2.0))
+    }
+
+    function clamp(v,mn,mx) {
+
+        if(v < mn) return mn
+        if(v > mx) return mx
+
+        return v
+    }
+
+    function Vec2() {
+        this.x = 0;
+        this.y = 0;
+    }
+
+    Vec2.from = function(x,y) {
+
+        var v = new Vec2();
+        v.x = x;
+        v.y = y;
+
+        return v;
+    }
+
+    Vec2.prototype.add = function(v) {
+        
+        this.x += v.x;
+        this.y += v.y;
+        return this;
+    }
+
+    Vec2.prototype.sub = function(v) {
+
+        this.x -= v.x;
+        this.y -= v.y;
+        return this;
+    }
+
+    Vec2.prototype.mul = function(s) {
+
+        this.x *= s;
+        this.y *= s;
+        return this;
+    }
+
+    var fluid = [];
+
+    function Particle() {
+
+        this.p = Vec2.from(0,0);
+        this.v = Vec2.from(0,0);
+        
+        this.P = 0;
+        this.field = 14;
+
+        this.i = 0;
+        this.m = 0;
+    }
+
+    Particle.prototype.draw = function(ctx) {
+        
+        var speed = dist(this.v, Vec2.from(0,0))
+        var s =  clamp(speed * 0.01, 0, 255)
+
+      //  ctx.fillRect(this.p.x - 2, this.p.y - 2, 4, 4);
+
+        ctx.beginPath();
+        ctx.arc(this.p.x, this.p.y, this.field, 0, Math.PI * 2, true); 
+        ctx.fillStyle = "rgba(0, 111, 255,0.5)";
+        
+        //ctx.strokeStyle = "rgb(" + (this.P * 255) + ",0,0)";
+        //ctx.stroke();
+        ctx.fill();
+        ctx.closePath();
+    }
+
+    Particle.prototype.update = function(dt) {
+
+        var px = this.p.x;
+        var py = this.p.y;
+        
+        var m = 1;
+
+        var pressureGrad = Vec2.from(0,0)
+
+        var fGrav = Vec2.from(0, -.981 * 1.5)
+        var fBoundary = Vec2.from(0, 0)
+        var fPressure = Vec2.from(0, 0)
+        var fViscosity = Vec2.from(0, 0)
+
+        var N = 0
+        for(var n = 0; n < fluid.length; n++) {
+
+            var particle = fluid[n];
+            if(particle == this) continue;
+
+            var d = dist(this.p, particle.p)
+            if(d > this.field || d <= 0) continue;
+
+            var dFrac = 1.0 - (d / this.field)
+            var nVec = Vec2.from(particle.p.x - this.p.x, particle.p.y - this.p.y).mul(-dFrac)
+
+            fViscosity.add(particle.v).mul(1.0 / d)
+            N++
+
+            fPressure.add(nVec)
+        }
+
+        if(N > 0) {
+ 
+            fViscosity.mul(0.015).mul(1.0 / N)
+        }
+
+
+        var dist_to_bottom = dist(this.p, Vec2.from(this.p.x, 0));
+        
+        if( dist_to_bottom <= this.field ) {
+            this.P = (this.field - dist_to_bottom) / this.field;
+        }
+
+        var F = fGrav.add(fBoundary).add(fPressure)//.add(fViscosity)
+        var a = F.mul(dt)
+        this.v.mul(0.975).add(a)
+
+        this.p.add(this.v)
+        
+
+        var p_y = clamp(this.p.y, 0, 500)
+        var p_x = clamp(this.p.x, 0, 500)
+
+        if(this.p.x > 500 || this.p.x < 0) {
+            this.v.x = 1.1 * (p_x - this.p.x)
+            this.p.x = p_x
+        }
+
+        if(this.p.y > 500 || this.p.y < 0) {
+            this.v.y = 1.1 * (p_y - this.p.y)
+            this.p.y = p_y
+        }
+ 
+    }
+ 
+    function simulate(dt) {
+        for(var i = 0; i < fluid.length; i++) {
+
+            fluid[i].update(dt);
+        }
+    }
+
+    
+  var canvas = document.getElementById('canvas');
+  var ctx = canvas.getContext('2d'); 
+  
+    setInterval(function() {
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    simulate(100.0 / 1000.0);
+        for(var i = 0; i < fluid.length; i++) {
+
+            fluid[i].draw(ctx);
+        }
+
+  }, 20)
+
+ 
+  setInterval(function() {
+if(fluid.length < count) {
+
+        var particle = new Particle();
+        particle.p.x = 100;
+        particle.p.y = 125;
+particle.v.x = 15;
+particle.v.y = 15;
+        fluid.push( particle)
+
+}
+  },100)
+
+
+
+</script>
+      
+</body>
+</html>
